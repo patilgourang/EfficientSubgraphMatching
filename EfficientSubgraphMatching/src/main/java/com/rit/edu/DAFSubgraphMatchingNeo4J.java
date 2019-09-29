@@ -94,7 +94,7 @@ public class DAFSubgraphMatchingNeo4J {
 	public SimpleDirectedGraph<Vertex, DefaultEdge> buildDAG(Graph<Vertex, DefaultEdge> queryGraph, String dataGraphLabel)
 	{
 		Vertex root = selectQueryRoot(queryGraph, dataGraphLabel);
-		//System.out.println(root);
+		System.out.println(root);
 		List<List<Vertex>> verticesByLevel = traverseGraphinBFSOrder(root, queryGraph);
 		SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG = buildDAGFromVertices(verticesByLevel, queryGraph, dataGraphLabel);
 		System.out.println("Query DAG: " + queryDAG);
@@ -358,36 +358,53 @@ public class DAFSubgraphMatchingNeo4J {
 		System.out.println("Initial CS: " + initialCS);
 		
 		Map<String, Set<Integer>> refinedCS = DAGGraphDP(reverseQueryDAG, initialCS, dataGraphLabel);
-		System.out.println("First Refinement" + refinedCS);
+		//System.out.println("First Refinement" + refinedCS);
+		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+			System.out.print(e.getKey() + ":" + e.getValue().size());
+		}
+		System.out.println();
 		refinedCS = DAGGraphDP(queryDAG, refinedCS, dataGraphLabel);
-		System.out.println("Second Refinement" + refinedCS);
+		//System.out.println("Second Refinement" + refinedCS);
+		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+			System.out.print(e.getKey() + ":" + e.getValue().size());
+		}
+		System.out.println();
 		refinedCS = DAGGraphDP(reverseQueryDAG, refinedCS, dataGraphLabel);
-		System.out.println("Third Refinement" + refinedCS);
+		//System.out.println("Third Refinement" + refinedCS);
+		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+			System.out.print(e.getKey() + ":" + e.getValue().size());
+		}
+		System.out.println();
 		refinedCS = DAGGraphDP(queryDAG, refinedCS, dataGraphLabel);
-		System.out.println("Forth Refinement" + refinedCS);
+		//System.out.println("Forth Refinement" + refinedCS);
+		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+			System.out.print(e.getKey() + ":" + e.getValue().size() + " ; ");
+		}
+		System.out.println();
+		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+			System.out.println(e.getKey() + " : " + e.getValue());
+		}
 	}
 	
 	private Map<String, Set<Integer>> DAGGraphDP(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Map<String, Set<Integer>> initialCS, String dataGraphLabel) {
-		// TODO Auto-generated method stub
-		Set<Vertex> visited = new HashSet<>();
-		//Stack<Vertex> stack = new Stack<>();
-		Queue<Vertex> queue = new LinkedList<>();
+		
 		Map<String, Set<Integer>> refinedCS = new HashMap<>();
-		Vertex startVertex = findVertexWithInDegreeZero(queryDAG);
+		//Vertex startVertex = findVertexWithInDegreeZero(queryDAG);
 		//reverseTopologicalSort(queryDAG, visited, queue, queryDAG.vertexSet().stream().filter(v -> v.id.equals("u4")).findFirst().get());
-		reverseTopologicalSort(queryDAG, visited, queue, startVertex);
-		System.out.println("QueryDAG :" + queryDAG + "Start Vertex" + startVertex);
+		//reverseTopologicalSortHelper(queryDAG, visited, queue, startVertex);
+		//System.out.println("QueryDAG :" + queryDAG + "Start Vertex" + startVertex);
 		//System.out.println(stack);
 		/*while(!stack.empty()) {
 			System.out.println(stack.pop());
 		}*/
+		Queue<Vertex> queue = reverseTopologicalSort(queryDAG);
 		while (!queue.isEmpty()) {
 			//System.out.println(queue.poll());
 			Vertex v = queue.poll();
 			Set<DefaultEdge> outgoingEdges = queryDAG.outgoingEdgesOf(v);
 			//System.out.println("Vertex: " + v + " Outgoing Edges :" + outgoingEdges);
 			Set<Vertex> children = outgoingEdges.stream().map(edge -> queryDAG.getEdgeTarget(edge)).collect(Collectors.toSet());
-			System.out.println("Vertex: " + v + " Children :" + children);
+			//System.out.println("Vertex: " + v + " Children :" + children);
 			if (children.isEmpty()) {
 				refinedCS.put(v.id, initialCS.get(v.id));
 			}
@@ -396,9 +413,7 @@ public class DAFSubgraphMatchingNeo4J {
 					boolean flag = true;
 					for(Vertex child : children) {
 						Set<Integer> neighbours = getAdjacentNodesOf(node, v, dataGraphLabel, child.label);
-						
-						
-						System.out.println("Node:" + node + " -> Child:" + child + ":" + neighbours);
+						//System.out.println("Node:" + node + " -> Child:" + child + ":" + neighbours);
 						/*if(!refinedCS.get(child.id).containsAll(neighbours)) {
 							flag = false;
 						}*/
@@ -421,13 +436,13 @@ public class DAFSubgraphMatchingNeo4J {
 						}
 					}
 					else {
-						System.out.println("Refined CS: " + refinedCS);
-						System.out.println("Removing " + node);
+						//System.out.println("Refined CS: " + refinedCS);
+						//System.out.println("Removing " + node);
 					}
 				}
 			}
 		}
-		System.out.println("Refined CS: " + refinedCS);
+		//System.out.println("Refined CS: " + refinedCS);
 		return refinedCS;
 	}
 
@@ -439,8 +454,19 @@ public class DAFSubgraphMatchingNeo4J {
 		}
 		throw new IllegalStateException("no vertex with In Degree 0 found");
 	}
-
-	private void reverseTopologicalSort(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Set<Vertex> visited, Queue<Vertex> queue, Vertex v) {
+	
+	private Queue<Vertex> reverseTopologicalSort(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG) 
+    { 
+		Set<Vertex> visited = new HashSet<>();
+		Queue<Vertex> queue = new LinkedList<>(); 
+  
+        for (Vertex v : queryDAG.vertexSet()) 
+            if (!visited.contains(v)) 
+            	reverseTopologicalSortHelper(v, queryDAG, visited,  queue);
+        return queue;
+    }
+	
+	private void reverseTopologicalSortHelper(Vertex v, SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Set<Vertex> visited, Queue<Vertex> queue) {
 		visited.add(v);
 		
 		for(DefaultEdge edge:queryDAG.edgesOf(v))
@@ -451,11 +477,10 @@ public class DAFSubgraphMatchingNeo4J {
 				continue;
 			}
 			if (!visited.contains(target)) {
-				reverseTopologicalSort(queryDAG, visited, queue, target);
+				reverseTopologicalSortHelper(target, queryDAG, visited, queue);
 			}
 		}
 		queue.offer(v);
-		
 	}
 	
 	private void topologicalSort(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Set<Vertex> visited, Stack<Vertex> stack, Vertex v) {
@@ -479,11 +504,10 @@ public class DAFSubgraphMatchingNeo4J {
 	public static void main(String[] args) throws IOException {
 		initDB();
 		DAFSubgraphMatchingNeo4J daf = new DAFSubgraphMatchingNeo4J();
-		Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("a_testquery.4.sub.grf");
-		SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG = daf.buildDAG(queryGraph, "a_test");
-		daf.DAF(queryGraph, "a_test");
-		/*SimpleDirectedGraph<Vertex, DefaultEdge> reverseQueryDAG = daf.reverseDAG(queryGraph);
-		daf.buildCS(queryGraph, reverseQueryDAG, "a_test");*/
+		/*Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("a_testquery.4.sub.grf");
+		daf.DAF(queryGraph, "a_test");*/
+		Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("backbones_198L.8.sub.grf");
+		daf.DAF(queryGraph, "ecoli_1ZTA");
 		shutdownDB();
 	}
 }
