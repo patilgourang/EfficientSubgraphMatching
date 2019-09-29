@@ -87,7 +87,8 @@ public class DAFSubgraphMatchingNeo4J {
 	
 	public void DAF(Graph<Vertex, DefaultEdge> queryGraph, String dataGraphLabel)
 	{
-		buildDAG(queryGraph, dataGraphLabel);
+		SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG = buildDAG(queryGraph, dataGraphLabel);
+		buildCS(queryGraph, queryDAG, dataGraphLabel);
 	}
 	
 	public SimpleDirectedGraph<Vertex, DefaultEdge> buildDAG(Graph<Vertex, DefaultEdge> queryGraph, String dataGraphLabel)
@@ -345,6 +346,8 @@ public class DAFSubgraphMatchingNeo4J {
 	
 	private void buildCS(Graph<Vertex, DefaultEdge> queryGraph, SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, String dataGraphLabel)
 	{
+		SimpleDirectedGraph<Vertex, DefaultEdge> reverseQueryDAG = reverseDAG(queryGraph);
+		
 		Map<String, Set<Integer>> initialCS = new LinkedHashMap<>();
 		for(Vertex vertex : queryDAG.vertexSet())
 		{
@@ -354,7 +357,14 @@ public class DAFSubgraphMatchingNeo4J {
 		}
 		System.out.println("Initial CS: " + initialCS);
 		
-		Map<String, Set<Integer>> refinedCS = DAGGraphDP(queryDAG, initialCS, dataGraphLabel);
+		Map<String, Set<Integer>> refinedCS = DAGGraphDP(reverseQueryDAG, initialCS, dataGraphLabel);
+		System.out.println("First Refinement" + refinedCS);
+		refinedCS = DAGGraphDP(queryDAG, refinedCS, dataGraphLabel);
+		System.out.println("Second Refinement" + refinedCS);
+		refinedCS = DAGGraphDP(reverseQueryDAG, refinedCS, dataGraphLabel);
+		System.out.println("Third Refinement" + refinedCS);
+		refinedCS = DAGGraphDP(queryDAG, refinedCS, dataGraphLabel);
+		System.out.println("Forth Refinement" + refinedCS);
 	}
 	
 	private Map<String, Set<Integer>> DAGGraphDP(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Map<String, Set<Integer>> initialCS, String dataGraphLabel) {
@@ -362,8 +372,11 @@ public class DAFSubgraphMatchingNeo4J {
 		Set<Vertex> visited = new HashSet<>();
 		//Stack<Vertex> stack = new Stack<>();
 		Queue<Vertex> queue = new LinkedList<>();
-		Map<String, Set<Integer>> refinedCS = new LinkedHashMap<>();
-		reverseTopologicalSort(queryDAG, visited, queue, queryDAG.vertexSet().stream().filter(v -> v.id.equals("u4")).findFirst().get());
+		Map<String, Set<Integer>> refinedCS = new HashMap<>();
+		Vertex startVertex = findVertexWithInDegreeZero(queryDAG);
+		//reverseTopologicalSort(queryDAG, visited, queue, queryDAG.vertexSet().stream().filter(v -> v.id.equals("u4")).findFirst().get());
+		reverseTopologicalSort(queryDAG, visited, queue, startVertex);
+		System.out.println("QueryDAG :" + queryDAG + "Start Vertex" + startVertex);
 		//System.out.println(stack);
 		/*while(!stack.empty()) {
 			System.out.println(stack.pop());
@@ -383,10 +396,17 @@ public class DAFSubgraphMatchingNeo4J {
 					boolean flag = true;
 					for(Vertex child : children) {
 						Set<Integer> neighbours = getAdjacentNodesOf(node, v, dataGraphLabel, child.label);
+						
+						
 						System.out.println("Node:" + node + " -> Child:" + child + ":" + neighbours);
-						if(!refinedCS.get(child.id).containsAll(neighbours)) {
+						/*if(!refinedCS.get(child.id).containsAll(neighbours)) {
+							flag = false;
+						}*/
+						neighbours.retainAll(refinedCS.get(child.id));
+						if(neighbours.isEmpty()) {
 							flag = false;
 						}
+						
 					}
 					if(flag) {
 						if(refinedCS.containsKey(v.id)) {
@@ -400,11 +420,24 @@ public class DAFSubgraphMatchingNeo4J {
 							refinedCS.put(v.id, candidates);
 						}
 					}
+					else {
+						System.out.println("Refined CS: " + refinedCS);
+						System.out.println("Removing " + node);
+					}
 				}
 			}
 		}
 		System.out.println("Refined CS: " + refinedCS);
 		return refinedCS;
+	}
+
+	private Vertex findVertexWithInDegreeZero(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG) {
+		for(Vertex v: queryDAG.vertexSet())
+		{
+			if(queryDAG.incomingEdgesOf(v).size() == 0)
+				return v;
+		}
+		throw new IllegalStateException("no vertex with In Degree 0 found");
 	}
 
 	private void reverseTopologicalSort(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Set<Vertex> visited, Queue<Vertex> queue, Vertex v) {
@@ -448,8 +481,9 @@ public class DAFSubgraphMatchingNeo4J {
 		DAFSubgraphMatchingNeo4J daf = new DAFSubgraphMatchingNeo4J();
 		Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("a_testquery.4.sub.grf");
 		SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG = daf.buildDAG(queryGraph, "a_test");
-		SimpleDirectedGraph<Vertex, DefaultEdge> reverseQueryDAG = daf.reverseDAG(queryGraph);
-		daf.buildCS(queryGraph, reverseQueryDAG, "a_test");
+		daf.DAF(queryGraph, "a_test");
+		/*SimpleDirectedGraph<Vertex, DefaultEdge> reverseQueryDAG = daf.reverseDAG(queryGraph);
+		daf.buildCS(queryGraph, reverseQueryDAG, "a_test");*/
 		shutdownDB();
 	}
 }
