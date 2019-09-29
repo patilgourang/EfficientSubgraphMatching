@@ -12,16 +12,16 @@ import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
 import java.util.TreeSet;
-import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.SimpleDirectedGraph;
-import org.jgrapht.Graph;
 import org.jgrapht.graph.SimpleGraph;
 import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Result;
@@ -346,7 +346,7 @@ public class DAFSubgraphMatchingNeo4J {
 	
 	private void buildCS(Graph<Vertex, DefaultEdge> queryGraph, SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, String dataGraphLabel)
 	{
-		SimpleDirectedGraph<Vertex, DefaultEdge> reverseQueryDAG = reverseDAG(queryGraph);
+		SimpleDirectedGraph<Vertex, DefaultEdge> reverseQueryDAG = reverseDAG(queryDAG);
 		
 		Map<String, Set<Integer>> initialCS = new LinkedHashMap<>();
 		for(Vertex vertex : queryDAG.vertexSet())
@@ -355,32 +355,36 @@ public class DAFSubgraphMatchingNeo4J {
 			initialCS.put(vertex.id, candidateSet);
 			//System.out.println("Vertex: " + vertex + " Candidate Set: " + candidateSet);
 		}
-		System.out.println("Initial CS: " + initialCS);
+		//System.out.println("Initial CS: " + initialCS);
+		System.out.println("Initial CS:");
+		for(Entry<String, Set<Integer>> e : initialCS.entrySet()){
+			System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
+		}
 		
 		Map<String, Set<Integer>> refinedCS = DAGGraphDP(reverseQueryDAG, initialCS, dataGraphLabel);
-		//System.out.println("First Refinement" + refinedCS);
+		System.out.println("First Refinement" + refinedCS);
 		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
-			System.out.print(e.getKey() + ":" + e.getValue().size());
+			System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
 		}
 		System.out.println();
 		refinedCS = DAGGraphDP(queryDAG, refinedCS, dataGraphLabel);
-		//System.out.println("Second Refinement" + refinedCS);
+		System.out.println("Second Refinement" + refinedCS);
 		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
-			System.out.print(e.getKey() + ":" + e.getValue().size());
+			System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
 		}
 		System.out.println();
 		refinedCS = DAGGraphDP(reverseQueryDAG, refinedCS, dataGraphLabel);
-		//System.out.println("Third Refinement" + refinedCS);
+		System.out.println("Third Refinement" + refinedCS);
 		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
-			System.out.print(e.getKey() + ":" + e.getValue().size());
+			System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
 		}
 		System.out.println();
 		refinedCS = DAGGraphDP(queryDAG, refinedCS, dataGraphLabel);
-		//System.out.println("Forth Refinement" + refinedCS);
+		System.out.println("Forth Refinement" + refinedCS);
 		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
-			System.out.print(e.getKey() + ":" + e.getValue().size() + " ; ");
+			System.out.print(e.getKey() + ": Candidate Set Size=(" + e.getValue().size() + ") ; ");
 		}
-		System.out.println();
+		System.out.println("Final CS");
 		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
 			System.out.println(e.getKey() + " : " + e.getValue());
 		}
@@ -398,13 +402,14 @@ public class DAFSubgraphMatchingNeo4J {
 			System.out.println(stack.pop());
 		}*/
 		Queue<Vertex> queue = reverseTopologicalSort(queryDAG);
+		System.out.println("Reverse Topological Order: "+queue);
 		while (!queue.isEmpty()) {
 			//System.out.println(queue.poll());
 			Vertex v = queue.poll();
 			Set<DefaultEdge> outgoingEdges = queryDAG.outgoingEdgesOf(v);
 			//System.out.println("Vertex: " + v + " Outgoing Edges :" + outgoingEdges);
 			Set<Vertex> children = outgoingEdges.stream().map(edge -> queryDAG.getEdgeTarget(edge)).collect(Collectors.toSet());
-			//System.out.println("Vertex: " + v + " Children :" + children);
+			System.out.println("Vertex: " + v + " Children :" + children);
 			if (children.isEmpty()) {
 				refinedCS.put(v.id, initialCS.get(v.id));
 			}
@@ -412,14 +417,41 @@ public class DAFSubgraphMatchingNeo4J {
 				for(Integer node : initialCS.get(v.id)) {
 					boolean flag = true;
 					for(Vertex child : children) {
-						Set<Integer> neighbours = getAdjacentNodesOf(node, v, dataGraphLabel, child.label);
+						//Set<Integer> neighbours = getAdjacentNodesOf(node, v, dataGraphLabel, child.label);
 						//System.out.println("Node:" + node + " -> Child:" + child + ":" + neighbours);
 						/*if(!refinedCS.get(child.id).containsAll(neighbours)) {
 							flag = false;
 						}*/
-						neighbours.retainAll(refinedCS.get(child.id));
+						/*neighbours.retainAll(refinedCS.get(child.id));
 						if(neighbours.isEmpty()) {
 							flag = false;
+						}*/
+						/*Set<Integer> neighbours = getAdjacentNodesOf(node, v, dataGraphLabel, child.label);
+						System.out.println("Node:" + node + " -> Neighbours :" + neighbours);
+						Set<Integer> candidateSetOfChild = refinedCS.get(child.id);
+						System.out.println("Child:" + child +" -> Candidate Set:" +candidateSetOfChild);
+						neighbours.retainAll(candidateSetOfChild);
+						if(neighbours.isEmpty()) {
+							flag = false;
+						}*/
+						boolean childFlag = false;
+						Set<Integer> candidateSetOfChild = refinedCS.get(child.id);
+						if(candidateSetOfChild == null) {
+							System.out.println("Child:" + child +" -> Candidate Set:" +candidateSetOfChild);
+							System.out.println(refinedCS.keySet());
+						}
+							
+						for(Integer candidate : candidateSetOfChild)
+						{
+							if(checkIfEdgeExist(node, candidate, dataGraphLabel))
+							{
+								childFlag = true;
+								break;
+							}
+						}
+						if(!childFlag) {
+							flag = false;
+							break;
 						}
 						
 					}
@@ -434,6 +466,7 @@ public class DAFSubgraphMatchingNeo4J {
 							candidates.add(node);
 							refinedCS.put(v.id, candidates);
 						}
+						System.out.println("Adding Node" + node + "to" + v.id);
 					}
 					else {
 						//System.out.println("Refined CS: " + refinedCS);
@@ -441,9 +474,31 @@ public class DAFSubgraphMatchingNeo4J {
 					}
 				}
 			}
+			System.out.println("Refined CS: " + refinedCS.keySet());
+			for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+				System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
+			}
+			System.out.println();
 		}
 		//System.out.println("Refined CS: " + refinedCS);
 		return refinedCS;
+	}
+
+	private boolean checkIfEdgeExist(Integer node, Integer candidate, String dataGraphLabel) {
+		String query = "RETURN EXISTS( (:"+ dataGraphLabel + " {id: '" + node + "'})-[:HASCONNECTION]-(:" + dataGraphLabel +" {id: '" + candidate + "'}) )";
+		boolean flag = false;
+		Result rs = dbService.execute(query);
+		while(rs.hasNext())
+		{
+			Map<String,Object> next = rs.next();
+			for(Entry<String, Object> entry : next.entrySet())
+			{
+				if(entry.getValue().toString().equals("true"))
+					flag = true;
+			}
+		}
+		rs.close();
+		return flag;
 	}
 
 	private Vertex findVertexWithInDegreeZero(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG) {

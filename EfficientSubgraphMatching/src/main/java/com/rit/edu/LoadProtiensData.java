@@ -95,8 +95,9 @@ public class LoadProtiensData {
 	{
 		//String query = "MATCH(N1:a_test) RETURN COUNT(N1) ;";
 		//String query = "MATCH(N1:a_test) RETURN N1.id ;";
-		String query = "MATCH(N1:a_test) WHERE N1.id = '5' RETURN N1;";
+		//String query = "MATCH(N1:a_test) WHERE N1.id = '5' RETURN N1;";
 		//String query = "MATCH(N1:a_test:C)-[:HASCONNECTION]-(N2) WHERE N1.id = 5 RETURN N2.id;";
+		String query = "RETURN EXISTS( (:a_test {id: '2'})-[:HASCONNECTION]-(:a_test {id: '9'}) )";
 		GraphDatabaseFactory dbFactory = new GraphDatabaseFactory();
 		GraphDatabaseService dbService = dbFactory.newEmbeddedDatabase(new File(DBPath));
 		Result rs = dbService.execute(query);
