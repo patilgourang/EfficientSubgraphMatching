@@ -16,6 +16,7 @@ import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.Set;
 import java.util.Stack;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
@@ -48,6 +49,7 @@ public class DAFSubgraphMatchingNeo4J {
 		Graph<Vertex, DefaultEdge> queryGraph = new SimpleGraph<>(DefaultEdge.class);
 		File queryFile = new File(queryFolderPath+"/"+queryFileName);
 		System.out.println("Query File Name : "+queryFileName);
+		
 		LinkedList<String> linesList = new LinkedList<>();
 		BufferedReader bf = new BufferedReader(new FileReader(queryFile));
 		String line = null;
@@ -81,12 +83,13 @@ public class DAFSubgraphMatchingNeo4J {
 				linesList.removeFirst();
 			}
 		}
-		System.out.println("Query Graph"+ queryGraph);
+		System.out.println("Query Graph: "+ queryGraph);
 		return queryGraph;
 	}
 	
 	public void DAF(Graph<Vertex, DefaultEdge> queryGraph, String dataGraphLabel)
 	{
+		System.out.println("Data Graph Name : " + dataGraphLabel);
 		SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG = buildDAG(queryGraph, dataGraphLabel);
 		buildCS(queryGraph, queryDAG, dataGraphLabel);
 	}
@@ -94,7 +97,7 @@ public class DAFSubgraphMatchingNeo4J {
 	public SimpleDirectedGraph<Vertex, DefaultEdge> buildDAG(Graph<Vertex, DefaultEdge> queryGraph, String dataGraphLabel)
 	{
 		Vertex root = selectQueryRoot(queryGraph, dataGraphLabel);
-		System.out.println(root);
+		//System.out.println(root);
 		List<List<Vertex>> verticesByLevel = traverseGraphinBFSOrder(root, queryGraph);
 		SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG = buildDAGFromVertices(verticesByLevel, queryGraph, dataGraphLabel);
 		System.out.println("Query DAG: " + queryDAG);
@@ -114,7 +117,7 @@ public class DAFSubgraphMatchingNeo4J {
 			}
 		}
 		
-		System.out.println("Reverrse DAG" + reverseDAG);
+		System.out.println("Reverse DAG: " + reverseDAG);
 		return reverseDAG;
 	}
 	
@@ -348,51 +351,56 @@ public class DAFSubgraphMatchingNeo4J {
 	{
 		SimpleDirectedGraph<Vertex, DefaultEdge> reverseQueryDAG = reverseDAG(queryDAG);
 		
-		Map<String, Set<Integer>> initialCS = new LinkedHashMap<>();
+		Map<String, Set<Integer>> initialCS = new TreeMap<>();
 		for(Vertex vertex : queryDAG.vertexSet())
 		{
 			Set<Integer> candidateSet = getInitialCandidateSet(vertex, queryGraph, dataGraphLabel);
 			initialCS.put(vertex.id, candidateSet);
 			//System.out.println("Vertex: " + vertex + " Candidate Set: " + candidateSet);
 		}
-		//System.out.println("Initial CS: " + initialCS);
+		System.out.println();
+		System.out.println("Initial CS: " + initialCS);
+		
 		System.out.println("Initial CS:");
 		for(Entry<String, Set<Integer>> e : initialCS.entrySet()){
-			System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
+			System.out.println(e.getKey() + " -> Candidate Set Size : (" + e.getValue().size() + ") ");
 		}
-		
+		System.out.println();
 		Map<String, Set<Integer>> refinedCS = DAGGraphDP(reverseQueryDAG, initialCS, dataGraphLabel);
 		System.out.println("First Refinement" + refinedCS);
-		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+		/*for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
 			System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
-		}
+		}*/
 		System.out.println();
 		refinedCS = DAGGraphDP(queryDAG, refinedCS, dataGraphLabel);
 		System.out.println("Second Refinement" + refinedCS);
-		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+		/*for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
 			System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
-		}
+		}*/
 		System.out.println();
 		refinedCS = DAGGraphDP(reverseQueryDAG, refinedCS, dataGraphLabel);
 		System.out.println("Third Refinement" + refinedCS);
-		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+		/*for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
 			System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
-		}
+		}*/
 		System.out.println();
 		refinedCS = DAGGraphDP(queryDAG, refinedCS, dataGraphLabel);
 		System.out.println("Forth Refinement" + refinedCS);
-		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
+		/*for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
 			System.out.print(e.getKey() + ": Candidate Set Size=(" + e.getValue().size() + ") ; ");
-		}
+		}*/
+		System.out.println();
 		System.out.println("Final CS");
 		for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
-			System.out.println(e.getKey() + " : " + e.getValue());
+			//System.out.println(e.getKey() + " : " + e.getValue());
+			//System.out.println(e.getKey() + " -> Size :" + e.getValue().size());
+			System.out.println(e.getKey() + " -> Candidate Set Size : (" + e.getValue().size() + ") ");
 		}
 	}
 	
 	private Map<String, Set<Integer>> DAGGraphDP(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Map<String, Set<Integer>> initialCS, String dataGraphLabel) {
 		
-		Map<String, Set<Integer>> refinedCS = new HashMap<>();
+		Map<String, Set<Integer>> refinedCS = new TreeMap();
 		//Vertex startVertex = findVertexWithInDegreeZero(queryDAG);
 		//reverseTopologicalSort(queryDAG, visited, queue, queryDAG.vertexSet().stream().filter(v -> v.id.equals("u4")).findFirst().get());
 		//reverseTopologicalSortHelper(queryDAG, visited, queue, startVertex);
@@ -402,14 +410,14 @@ public class DAFSubgraphMatchingNeo4J {
 			System.out.println(stack.pop());
 		}*/
 		Queue<Vertex> queue = reverseTopologicalSort(queryDAG);
-		System.out.println("Reverse Topological Order: "+queue);
+		//System.out.println("Reverse Topological Order: "+queue);
 		while (!queue.isEmpty()) {
 			//System.out.println(queue.poll());
 			Vertex v = queue.poll();
 			Set<DefaultEdge> outgoingEdges = queryDAG.outgoingEdgesOf(v);
 			//System.out.println("Vertex: " + v + " Outgoing Edges :" + outgoingEdges);
 			Set<Vertex> children = outgoingEdges.stream().map(edge -> queryDAG.getEdgeTarget(edge)).collect(Collectors.toSet());
-			System.out.println("Vertex: " + v + " Children :" + children);
+			//System.out.println("Vertex: " + v + " Children :" + children);
 			if (children.isEmpty()) {
 				refinedCS.put(v.id, initialCS.get(v.id));
 			}
@@ -426,14 +434,17 @@ public class DAFSubgraphMatchingNeo4J {
 						if(neighbours.isEmpty()) {
 							flag = false;
 						}*/
-						/*Set<Integer> neighbours = getAdjacentNodesOf(node, v, dataGraphLabel, child.label);
-						System.out.println("Node:" + node + " -> Neighbours :" + neighbours);
+						Set<Integer> neighbours = getAdjacentNodesOf(node, v, dataGraphLabel, child.label);
+						//System.out.println("Node:" + node + " -> Neighbours :" + neighbours);
 						Set<Integer> candidateSetOfChild = refinedCS.get(child.id);
-						System.out.println("Child:" + child +" -> Candidate Set:" +candidateSetOfChild);
+						//System.out.println("Child:" + child +" -> Candidate Set:" +candidateSetOfChild);
 						neighbours.retainAll(candidateSetOfChild);
 						if(neighbours.isEmpty()) {
 							flag = false;
-						}*/
+						}
+						
+						/*
+						 * Approach Edge checking
 						boolean childFlag = false;
 						Set<Integer> candidateSetOfChild = refinedCS.get(child.id);
 						if(candidateSetOfChild == null) {
@@ -452,7 +463,7 @@ public class DAFSubgraphMatchingNeo4J {
 						if(!childFlag) {
 							flag = false;
 							break;
-						}
+						}*/
 						
 					}
 					if(flag) {
@@ -466,7 +477,7 @@ public class DAFSubgraphMatchingNeo4J {
 							candidates.add(node);
 							refinedCS.put(v.id, candidates);
 						}
-						System.out.println("Adding Node" + node + "to" + v.id);
+						//System.out.println("Adding Node" + node + "to" + v.id);
 					}
 					else {
 						//System.out.println("Refined CS: " + refinedCS);
@@ -474,11 +485,11 @@ public class DAFSubgraphMatchingNeo4J {
 					}
 				}
 			}
-			System.out.println("Refined CS: " + refinedCS.keySet());
+			/*System.out.println("Refined CS: " + refinedCS.keySet());
 			for(Entry<String, Set<Integer>> e : refinedCS.entrySet()){
 				System.out.print(e.getKey() + ": Candidate Set Size : (" + e.getValue().size() + ") ; ");
 			}
-			System.out.println();
+			System.out.println();*/
 		}
 		//System.out.println("Refined CS: " + refinedCS);
 		return refinedCS;
