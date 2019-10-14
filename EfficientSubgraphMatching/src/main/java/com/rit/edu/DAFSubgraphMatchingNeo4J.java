@@ -28,6 +28,9 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Result;
 import org.neo4j.graphdb.factory.GraphDatabaseFactory;
 
+import static java.util.stream.Collectors.*;
+import static java.util.Map.Entry.*;
+
 public class DAFSubgraphMatchingNeo4J {
 	
 	private static String queryFolderPath = "Proteins/query";
@@ -91,9 +94,47 @@ public class DAFSubgraphMatchingNeo4J {
 	{
 		System.out.println("Data Graph Name : " + dataGraphLabel);
 		SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG = buildDAG(queryGraph, dataGraphLabel);
-		buildCS(queryGraph, queryDAG, dataGraphLabel);
+		List<Vertex> DAGorder = topologicalSort(queryDAG);
+		Map<String, Set<Integer>> CS = buildCS(queryGraph, queryDAG, dataGraphLabel);
+		Map<Integer, Map<String, Set<Integer>>> adjacencyList = buildCSAdjacencyList(CS, queryDAG, dataGraphLabel);
+		backtrack(new LinkedHashMap<>(), queryGraph, queryDAG, CS, DAGorder, new LinkedHashSet<>(), adjacencyList);
 	}
 	
+	private Map<Integer, Map<String, Set<Integer>>> buildCSAdjacencyList(Map<String, Set<Integer>> CS, SimpleDirectedGraph<Vertex,DefaultEdge> queryDAG, String dataGraphLabel) {
+		// TODO Auto-generated method stub
+		Map<Integer, Map<String, Set<Integer>>> adjacencyList = new LinkedHashMap<>();
+		//Map<String, Set<Integer>> adjacencyList = new LinkedHashMap<>();
+		for(Entry<String, Set<Integer>> entry : CS.entrySet())
+		{
+			Set<Integer> candidates_u = entry.getValue();
+			for(int v : candidates_u) {
+				Map<String, Set<Integer>> adjacencyMap = new LinkedHashMap<>();
+				Vertex vertex = queryDAG.vertexSet().stream().filter(V -> V.id.equals(entry.getKey())).findFirst().orElse(null);
+				Set<Integer> adjacentNodesOfV = getAdjacentNodes(v, vertex, dataGraphLabel);
+				for(DefaultEdge edge : queryDAG.outgoingEdgesOf(vertex)) {
+					Vertex uc = queryDAG.getEdgeTarget(edge);
+					Set<Integer> result = adjacentNodesOfV.stream()
+							  .distinct()
+							  .filter(CS.get(uc.id)::contains)
+							  .collect(Collectors.toSet());
+					//System.out.println();
+					adjacencyMap.put(vertex.id + "_" + uc.id, result);
+				}
+				if(!adjacencyMap.isEmpty()) {
+					if(adjacencyList.containsKey(v)) {
+						Map<String, Set<Integer>> map = adjacencyList.get(v);
+						map.putAll(adjacencyMap);
+						adjacencyList.put(v, map);
+					} else {
+						adjacencyList.put(v, adjacencyMap);
+					}
+				}
+			}
+		}
+		System.out.println(adjacencyList);
+		return adjacencyList;
+	}
+
 	public SimpleDirectedGraph<Vertex, DefaultEdge> buildDAG(Graph<Vertex, DefaultEdge> queryGraph, String dataGraphLabel)
 	{
 		Vertex root = selectQueryRoot(queryGraph, dataGraphLabel);
@@ -165,12 +206,30 @@ public class DAFSubgraphMatchingNeo4J {
 			}
 		}
 		rs.close();
+		//System.out.println("Initial Candidate Set" + queryVertex.label + " : " + candidateSet );
 		return candidateSet;
 	}
 	
 	public Set<Integer> getAdjacentNodesOf(Integer node, Vertex queryVertex, String dataGraphLabel, String childLabel){
 		Set<Integer> adjacentNodes = new TreeSet<>();
 		String query = "MATCH(N1:" + dataGraphLabel + ":" + queryVertex.label +")-[:HASCONNECTION]-(N2:"+ childLabel +") WHERE N1.id = '"+ node +"' RETURN N2.id;";
+		//System.out.println(query);
+		Result rs = dbService.execute(query);
+		while(rs.hasNext())
+		{
+			Map<String,Object> next = rs.next();
+			for(Entry<String, Object> entry : next.entrySet())
+			{
+				adjacentNodes.add(Integer.parseInt(entry.getValue().toString()));
+			}
+		}
+		rs.close();
+		return adjacentNodes;
+	}
+	
+	public Set<Integer> getAdjacentNodes(Integer node, Vertex queryVertex, String dataGraphLabel){
+		Set<Integer> adjacentNodes = new TreeSet<>();
+		String query = "MATCH(N1:" + dataGraphLabel +")-[:HASCONNECTION]-(N2) WHERE N1.id = '"+ node +"' RETURN N2.id;";
 		//System.out.println(query);
 		Result rs = dbService.execute(query);
 		while(rs.hasNext())
@@ -347,7 +406,7 @@ public class DAFSubgraphMatchingNeo4J {
 		return verticesList;
 	}
 	
-	private void buildCS(Graph<Vertex, DefaultEdge> queryGraph, SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, String dataGraphLabel)
+	private Map<String, Set<Integer>> buildCS(Graph<Vertex, DefaultEdge> queryGraph, SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, String dataGraphLabel)
 	{
 		SimpleDirectedGraph<Vertex, DefaultEdge> reverseQueryDAG = reverseDAG(queryDAG);
 		
@@ -396,6 +455,7 @@ public class DAFSubgraphMatchingNeo4J {
 			//System.out.println(e.getKey() + " -> Size :" + e.getValue().size());
 			System.out.println(e.getKey() + " -> Candidate Set Size : (" + e.getValue().size() + ") ");
 		}
+		return refinedCS;
 	}
 	
 	private Map<String, Set<Integer>> DAGGraphDP(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Map<String, Set<Integer>> initialCS, String dataGraphLabel) {
@@ -549,7 +609,23 @@ public class DAFSubgraphMatchingNeo4J {
 		queue.offer(v);
 	}
 	
-	private void topologicalSort(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Set<Vertex> visited, Stack<Vertex> stack, Vertex v) {
+	private List<Vertex> topologicalSort(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG) 
+    { 
+		Set<Vertex> visited = new HashSet<>();
+		Stack<Vertex> stack = new Stack<>(); 
+  
+        for (Vertex v : queryDAG.vertexSet()) 
+            if (!visited.contains(v)) 
+            	topologicalSortHelper(queryDAG, visited,  stack, v);
+        
+        List<Vertex> topologicalOrder = new ArrayList<>();
+        while(!stack.isEmpty()) {
+        	topologicalOrder.add(stack.pop());
+        }
+        return topologicalOrder;
+    }
+	
+	private void topologicalSortHelper(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Set<Vertex> visited, Stack<Vertex> stack, Vertex v) {
 		// TODO Auto-generated method stub
 		visited.add(v);
 		
@@ -560,11 +636,75 @@ public class DAFSubgraphMatchingNeo4J {
 				target = queryDAG.getEdgeSource(edge);
 			}
 			if (!visited.contains(target)) {
-				topologicalSort(queryDAG, visited, stack, target);
+				topologicalSortHelper(queryDAG, visited, stack, target);
 			}
 		}
 		stack.push(v);
 		
+	}
+	
+	/*private void getDAGOrdering(SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG) {
+		List<Vertex> order = topologicalSort(queryDAG);
+		
+	}*/
+	
+	private Set<Integer> getExtendableCandidates(String u_id, SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Map<Integer, Map<String, Set<Integer>>> adjacencyList, Map<String, Integer> partialEmbedding){
+		Set<Integer> extendableCandidates = new LinkedHashSet<>();
+		for(DefaultEdge edge : queryDAG.incomingEdgesOf(queryDAG.vertexSet().stream().filter(u -> u.id.equals(u_id)).findFirst().get())) {
+			String parent = queryDAG.getEdgeSource(edge).id;
+			Set<Integer> candidates =  adjacencyList.get(partialEmbedding.get(parent)).get(parent + "_" + u_id);
+			if(extendableCandidates.isEmpty()) {
+				if(candidates != null && !candidates.isEmpty()) {
+					//System.out.println();
+					extendableCandidates.addAll(candidates);
+				}
+				
+			}
+			else {
+				extendableCandidates.retainAll(candidates);
+			}
+		}
+		return extendableCandidates;
+	}
+	
+	private void backtrack(Map<String, Integer> partialEmbedding, Graph<Vertex, DefaultEdge> queryGraph, SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Map<String, Set<Integer>> CS, List<Vertex> DAGorder, Set<Integer> visited, Map<Integer, Map<String, Set<Integer>>> adjacencyList)  {
+		//System.out.println("Embedding" +partialEmbedding);
+		if(partialEmbedding.size() == queryGraph.vertexSet().size()) {
+			Map<String, Integer> sorted = partialEmbedding
+					.entrySet()
+					.stream()
+					.sorted(comparingByKey())
+					.collect(
+					toMap(Map.Entry::getKey, Map.Entry::getValue,
+					(e1, e2) -> e2, LinkedHashMap::new));
+			System.out.println("Embedding" +sorted);
+		}
+		else if(partialEmbedding.isEmpty() || partialEmbedding.size() == 0)
+		{
+			String nodeToProcess  = DAGorder.get(partialEmbedding.size()).id;
+			for(int v : CS.get(nodeToProcess)){
+				partialEmbedding.put(nodeToProcess, v);
+				visited.add(v);
+				backtrack(partialEmbedding, queryGraph, queryDAG, CS, DAGorder, visited, adjacencyList);
+				partialEmbedding.remove(nodeToProcess);
+				visited.remove((Integer)v);
+			}
+		}
+		else 
+		{
+			String nodeToProcess  = DAGorder.get(partialEmbedding.size()).id;
+			for(int v : getExtendableCandidates(nodeToProcess, queryDAG, adjacencyList, partialEmbedding))
+			//for(int v : CS.get(nodeToProcess))
+			{
+				if(!visited.contains(v)) {
+					partialEmbedding.put(nodeToProcess, v);
+					visited.add(v);
+					backtrack(partialEmbedding, queryGraph, queryDAG, CS, DAGorder, visited, adjacencyList);
+					partialEmbedding.remove(nodeToProcess);
+					visited.remove(v);
+				}
+			}
+		}
 	}
 
 	public static void main(String[] args) throws IOException {
@@ -574,6 +714,8 @@ public class DAFSubgraphMatchingNeo4J {
 		daf.DAF(queryGraph, "a_test");*/
 		Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("backbones_198L.8.sub.grf");
 		daf.DAF(queryGraph, "ecoli_1ZTA");
+		/*Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("backbones_198L.8.sub.grf");
+		daf.DAF(queryGraph, "human_2TGF");*/
 		shutdownDB();
 	}
 }
