@@ -1,3 +1,6 @@
 /.DS_Store
 EfficientSubgraphMatching/Proteins/.DS_Store
 EfficientSubgraphMatching/logs/debug.log
+EfficientSubgraphMatching/YeastDB
+*.DS_Store
+*.log

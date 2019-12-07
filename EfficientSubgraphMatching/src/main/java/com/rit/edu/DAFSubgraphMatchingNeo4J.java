@@ -106,6 +106,7 @@ public class DAFSubgraphMatchingNeo4J {
 		long buildCSTime = (System.currentTimeMillis()-startTimeBuildCS);
 		System.out.println("Time taken for Bulding CS in ms :"+buildCSTime);
 		long startTime = System.currentTimeMillis();//System.nanoTime();
+		//System.out.println("DAG Order" + DAGorder);
 		List<String> results = backtrack(new LinkedHashMap<>(), queryDAG, CS, DAGorder, new LinkedHashSet<>(), adjacencyList);
 		long queryTime = (System.currentTimeMillis()-startTime);
 		System.out.println("Time taken for Backtracking in ms :"+queryTime);
@@ -262,7 +263,7 @@ public class DAFSubgraphMatchingNeo4J {
 				if(entry.getKey().equals("N1"))
 				{
 					String node = entry.getValue().toString();
-					nodeId = Integer.parseInt(node.substring(5, node.length()-1)) % 10000;
+					nodeId = Integer.parseInt(node.substring(5, node.length()-1)) % 100000;
 				}
 				else
 				{
@@ -386,9 +387,20 @@ public class DAFSubgraphMatchingNeo4J {
 						Vertex v1 = group1.get(y);
 						for(int z = 0; z < group2.size(); z++) {
 							Vertex v2 = group2.get(z);
-							if(queryGraph.containsEdge(v1, v2) || queryGraph.containsEdge(v2, v2)) {
+							if(queryGraph.containsEdge(v1, v2) || queryGraph.containsEdge(v2, v1)) {
 								queryDAG.addEdge(v1, v2);
 							}
+						}
+					}
+				}
+			}
+			for(List<Vertex> group : labelsGroup) {
+				for(int k = 0; k < group.size()-1; k++) {
+					for(int l = k+1; l<group.size(); l++) {
+						Vertex v1 = group.get(k);
+						Vertex v2 = group.get(l);
+						if(queryGraph.containsEdge(v1, v2) || queryGraph.containsEdge(v1, v2)) {
+							queryDAG.addEdge(v1, v2);
 						}
 					}
 				}
@@ -720,7 +732,8 @@ public class DAFSubgraphMatchingNeo4J {
 		// TODO Auto-generated method stub
 		visited.add(v);
 		
-		for(DefaultEdge edge:queryDAG.edgesOf(v))
+		for(DefaultEdge edge:queryDAG.outgoingEdgesOf(v))
+		//for(DefaultEdge edge:queryDAG.edgesOf(v)) /// get only outgoing edges.. this is causing an issue 
 		{
 			Vertex target = queryDAG.getEdgeTarget(edge);
 			if(target.equals(v)) {
@@ -743,7 +756,12 @@ public class DAFSubgraphMatchingNeo4J {
 		Set<Integer> extendableCandidates = new LinkedHashSet<>();
 		for(DefaultEdge edge : queryDAG.incomingEdgesOf(queryDAG.vertexSet().stream().filter(u -> u.id.equals(u_id)).findFirst().get())) {
 			String parent = queryDAG.getEdgeSource(edge).id;
-			Set<Integer> candidates =  adjacencyList.get(partialEmbedding.get(parent)).get(parent + "_" + u_id);
+			//Set<Integer> candidates =  adjacencyList.get(partialEmbedding.get(parent)).get(parent + "_" + u_id);
+			Set<Integer> candidates = new HashSet<>();
+			if(adjacencyList.containsKey(partialEmbedding.get(parent))) {
+				candidates.addAll(adjacencyList.get(partialEmbedding.get(parent)).get(parent + "_" + u_id));
+			}
+			//System.out.println(partialEmbedding.get(parent) + ":" + parent + "_" + u_id);
 			if(extendableCandidates.isEmpty()) {
 				if(candidates != null && !candidates.isEmpty()) {
 					//System.out.println();
@@ -776,6 +794,7 @@ public class DAFSubgraphMatchingNeo4J {
 		else if(partialEmbedding.isEmpty() || partialEmbedding.size() == 0)
 		{
 			String nodeToProcess  = DAGorder.get(partialEmbedding.size()).id;
+			//System.out.println(nodeToProcess);
 			for(int v : CS.get(nodeToProcess)){
 				partialEmbedding.put(nodeToProcess, v);
 				visited.add(v);
@@ -787,6 +806,7 @@ public class DAFSubgraphMatchingNeo4J {
 		else 
 		{
 			String nodeToProcess  = DAGorder.get(partialEmbedding.size()).id;
+			//System.out.println(nodeToProcess);
 			Set<Integer> extendableCandidates = getExtendableCandidates(nodeToProcess, queryDAG, adjacencyList, partialEmbedding);
 			/*if(extendableCandidates.isEmpty()) {
 				System.out.println("Embedding" + partialEmbedding + " emptyset-class->" + nodeToProcess);
@@ -822,7 +842,7 @@ public class DAFSubgraphMatchingNeo4J {
 	} 
 	
 	private List<String> backtrackFailingSets(Map<String, Integer> partialEmbedding, SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG, Map<String, Set<Integer>> CS, List<Vertex> DAGorder, Set<Integer> visited, Map<Integer, Map<String, Set<Integer>>> adjacencyList, Map<String, Set<String>> ancestorMap, Map<String, Set<String>> failingSets, Map<String, Set<String>> nodeChildrenMap)  {
-		//System.out.println("Embedding" +partialEmbedding);
+		System.out.println("Embedding" +partialEmbedding);
 		List<String> results = new ArrayList<>();
 		if(partialEmbedding.size() == queryDAG.vertexSet().size()) {
 			Map<String, Integer> sorted = partialEmbedding
@@ -905,7 +925,7 @@ public class DAFSubgraphMatchingNeo4J {
 						}*/
 						
 						if(!failingSets.get(partialEmbedding.toString()).contains(nodeToProcess)) {
-							//System.out.println("prune");
+							System.out.println("prune");
 							partialEmbedding.remove(nodeToProcess);
 							visited.remove(v);
 							return results;
@@ -1238,10 +1258,22 @@ public class DAFSubgraphMatchingNeo4J {
 		
 		//daf.testFailingSets();
 		
-		/*Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("backbones_198L.8.sub.grf");
-		daf.DAFFailingSets(queryGraph, "ecoli_1ZTA");*/
+		/*Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("backbones_1QJ5.8.sub.grf");
+		System.out.println(daf.DAF(queryGraph, "backbones_1O54"));*/
+		
+		/*Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("backbones_1QJ5.8.sub.grf");
+		System.out.println(daf.DAFFailingSets(queryGraph, "backbones_1O54"));*/
 		
 		daf.performDAFSubgraphMatching("Proteins.8.gtr");
+		
+		
+		/*Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("backbones_1EMA.8.sub.grf");
+		daf.DAF(queryGraph, "backbones_1O54");*/
+		
+		/*Graph<Vertex, DefaultEdge> queryGraph = daf.createQueryGraph("backbones_1QJ5.8.sub.grf");
+		SimpleDirectedGraph<Vertex, DefaultEdge> queryDAG = daf.buildDAG(queryGraph, "backbones_1O54");
+		System.out.println("Query Graph:" + queryGraph);
+		System.out.println("Query DAG:" + queryDAG);*/
 		
 		//daf.performDAFSubgraphMatchingByPruningFailingSets("Proteins.8.gtr");
 		
